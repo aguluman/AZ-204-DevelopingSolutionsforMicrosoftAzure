@@ -12,20 +12,14 @@ namespace Api.Controllers
 {
     [ApiController]
     [Route("/")]
-    public class ImagesController : ControllerBase
+    public class ImagesController(HttpClient httpClient, Options options) : ControllerBase
     {
-        private HttpClient _httpClient;
-        private Options _options;
-
-        public ImagesController(HttpClient httpClient, Options options)
-        {
-            _httpClient = httpClient;
-            _options = options;
-        }
+        private readonly HttpClient _httpClient = httpClient;
+        private readonly Options _options = options;
 
         private async Task<BlobContainerClient> GetCloudBlobContainer(string containerName)
         {
-            BlobServiceClient serviceClient = new BlobServiceClient(_options.StorageConnectionString);
+            BlobServiceClient serviceClient = new(_options.StorageConnectionString);
             BlobContainerClient containerClient = serviceClient.GetBlobContainerClient(containerName);
             await containerClient.CreateIfNotExistsAsync();
             return containerClient;
@@ -40,7 +34,7 @@ namespace Api.Controllers
             BlobClient blobClient;
             BlobSasBuilder blobSasBuilder;
 
-            List<string> results = new List<string>();
+            List<string> results = [];
             await foreach (BlobItem blobItem in containerClient.GetBlobsAsync())
             {
 
