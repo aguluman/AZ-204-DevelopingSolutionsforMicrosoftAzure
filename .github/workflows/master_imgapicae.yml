@@ -1,7 +1,4 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
-name: Build and deploy ASP.Net Core app to Azure Web App - imgapicae
+name: '$(Date:yyyyMMdd)$(Rev:.rr)'
 
 on:
   push:
@@ -10,56 +7,56 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: windows-latest
-
+  - job: build_markdown_content
+    displayName: 'Build Markdown Content'
+    workspace:
+      clean: all
+    pool:
+      vmImage: 'ubuntu-latest'
+    container:
+      image: 'microsoftlearning/markdown-build:latest'
     steps:
-      - uses: actions/checkout@v4
+      - task: Bash@3
+        displayName: 'Build Content'
+        inputs:
+          targetType: inline
+          script: |
+            cp /{attribution.md,template.docx,package.json,package.js} .
+            npm install
+            node package.js --version $(Build.BuildNumber)
+      - task: GitHubRelease@0
+        displayName: 'Create GitHub Release'
+        inputs:
+          gitHubConnection: 'github-microsoftlearning-organization'
+          repositoryName: '$(Build.Repository.Name)'
+          tagSource: manual
+          tag: 'v$(Build.BuildNumber)'
+          title: 'Version $(Build.BuildNumber)'
+          releaseNotesSource: input
+          releaseNotes: '# Version $(Build.BuildNumber) Release'
+          assets: '$(Build.SourcesDirectory)/out/*.zip'
+          assetUploadMode: replace
+          isPreRelease: false
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Output Files'
+        inputs:
+          pathtoPublish: '$(Build.SourcesDirectory)/out/'
+          artifactName: 'Lab Files'
 
-      - name: Set up .NET Core
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.x'
-
-      - name: Build with dotnet
-        run: dotnet build --configuration Release
-
-      - name: dotnet publish
-        run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"
-
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
-
-  deploy:
-    runs-on: windows-latest
-    needs: build
-    environment:
-      name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-    permissions:
-      id-token: write #This is required for requesting the JWT
-
+  - job: build_dotnet_project
+    displayName: 'Build .NET Project'
+    pool:
+      vmImage: 'windows-latest'
     steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: .net-app
-      
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_28E0814826794B69A61ACFCCD8B95F00 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_692B787C850C4BEEB1C567FCF9697CC2 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_713E3A7950D148AF8A0275AD1EFFC51B }}
+      - task: UseDotNet@2
+        inputs:
+          packageType: 'sdk'
+          version: '6.x'
+          installationPath: $(Agent.ToolsDirectory)/dotnet
 
-      - name: Deploy to Azure Web App
-        id: deploy-to-webapp
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: 'imgapicae'
-          slot-name: 'Production'
-          package: .
-          
+      - uses: actions/checkout@v2
+
+      - script: |
+          cd AZ-204-DevelopingSolutionsforMicrosoftAzure\Allfiles\Labs\01\Starter\API
+          dotnet build API.sln --configuration Release
+        displayName: 'Build .NET Solution'
